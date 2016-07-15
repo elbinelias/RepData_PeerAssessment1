@@ -4,22 +4,139 @@ output:
   html_document:
     keep_md: true
 ---
-
+###Session information
+Below is the basic information about the computer and R packages that are loaded when performing this analysis.
+```{r echo=FALSE}
+sessionInfo()
+```
 
 ## Loading and preprocessing the data
+#### Load the data
+```{r}
+unzip("activity.zip")
+dat <- read.csv(file="activity.csv",sep=",",header=TRUE)
 
-
+```
 
 ## What is mean total number of steps taken per day?
+#### 1. Calculate the total number of steps taken per day
+```{r}
+dats <- aggregate(steps~date,dat,sum)
+names(dats) <- c("Date","Sum_of_steps")
+dats
+```
+#### 2. Histogram of the total number of steps taken each day
+```{r}
+library(ggplot2)
+g <- ggplot(dats,aes(x=Date,y=Sum_of_steps))
+g <- g + geom_bar(stat="identity",position="dodge")
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+g <- g+labs(title="Steps per day",x="Date",y="No. of steps")
+g
+```
 
+#### 3. Calculate and report the mean and median of the total number of steps taken per day
+Mean of the number of steps each day
+```{r}
+datm <- aggregate(steps~date,dat,mean)
+dats$Mean <- datm$steps
+dats
+```
+
+Median of total number of steps taken per day?
+```{r}
+datm <- aggregate(steps~date,dat,median)
+dats$Median <- datm$steps
+dats
+```
 
 
 ## What is the average daily activity pattern?
+#### 1. Time series plot
+```{r}
+g <- qplot(Date,Mean,data=dats,geom="line",group=1)
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+g <- g+labs(title="Average daily activity pattern",x="Date",y="Average number of steps")
+g
+```
 
-
+#### 2. Which 5-minute interval that, on average, contains the maximum number of steps?
+```{r}
+x <- dat$steps
+maxval <- dat[which(x==max(dat$steps,na.rm=TRUE)),]
+starttime <- as.POSIXlt(paste(maxval$date,"12:00:00"))
+endtime <- starttime+maxval$interval
+resultDate <- maxval$date
+resultSteps <- maxval$steps
+resultEnd <- format(endtime,"%H:%M:%S")
+resultStart <- format(endtime-5,"%H:%M:%S")
+```
+The 5-minute interval that, on average, contains the maximum number of steps was on `r resultDate` between `r resultStart` and `r resultEnd`. The max. number of steps where `r resultSteps`.
 
 ## Imputing missing values
+#### 1. Calculate and report the total number of missing values in the dataset
+```{r}
+num <- sum(is.na(dat$steps))
+```
+The total number of missing values in the dataset is `r num`
 
+#### 2. Strategy for filling missing values is to fill them by the mean of the total number of steps per day. If the mean of the total number of steps per day is also missing, then replace by mean of the total steps in the sample.
+```{r}
+datmod <- dat
+datdup <- dat
+datmod[is.na(datmod)]<-mean(dat$steps,na.rm=TRUE)
+datmods <- aggregate(steps~date,datmod,mean)
+for(i in 1:nrow(datdup)){
+    if (is.na(datdup[i,1])){
+        datdup[i,1] <- datmods[which(as.factor(datmods$date) %in% datdup[i,2]),2]
+    }
+}
+```
+###3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+Below the dataset is derived. Since its huge, same is not displayed. Instead the details of Sum, Mean, Median for each day derived from the new dataset is displayed
+```{r}
+datmods <- aggregate(steps~date,datdup,sum)
+names(datmods) <- c("Date","Sum")
+datmodstemp <- aggregate(steps~date,datdup,mean)
+datmods$Mean <- datmodstemp$steps
+atmodstemp <- aggregate(steps~date,datdup,median)
+datmods$Median <- datmodstemp$steps
+datmods
+```
+###4. Histogram with the new dataset
+```{r}
+library(ggplot2)
+g <- ggplot(datmods,aes(x=Date,y=Sum))
+g <- g + geom_bar(stat="identity",position="dodge")
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+g <- g+labs(title="Steps per day",x="Date",y="Sum")
+g
+```
 
+The difference between both histograms is that there are no more dates where the plot if not available for missing values.The total daily number of steps increases by imputing missing values. 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+datdup$Day <- weekdays(as.POSIXlt(datdup$date))
+for(i in 1:nrow(datdup)){
+    x <- datdup[i,4] 
+    if(x=="Saturday" || x=="Sunday")
+    {
+        datdup[i,4] <- "weekend"
+    }
+    else
+    {
+        datdup[i,4] <- "weekday"
+    }
+}
+ds <- aggregate(steps~interval+Day,datdup,mean)
+names(ds) <- c("Interval","Day","Mean")
+g <- qplot(Interval,Mean,data=ds,geom="line",group=1)
+g <- g+labs(title="Average daily activity pattern",x="Interval",y="Number of steps")
+g <- g+facet_grid(Day ~ .)
+g
+```
+
+Yes, there is a difference between the activity patterns between weekend and weekdays
+
+
